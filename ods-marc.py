@@ -1,6 +1,7 @@
 """Converts an Excel export of ODS data to MARC for import into Horizon"""
 
-import sys, os, logging
+import sys, os, logging, re
+from datetime import datetime
 from argparse import ArgumentParser
 from dlx import DB
 from dlx.util import Table
@@ -29,24 +30,24 @@ def main():
             if field_name == 'Doc Symbol':
                 bib.set('191', 'a', value)
             elif field_name == 'Title':
-                if not value:
-                    logging.warn('Title not found for row {}'.format(temp_id + 2))
-                    
-                bib.set('245', 'a', value)
-            elif field_name == 'publicaion date':
+                title_val = value if value else '[Missing title]'      
+                bib.set('245', 'a', title_val.title())
+            elif field_name == 'publicaion date' or field_name == 'publication date':
                 bib.set('269', 'a', value)
+                bib.set('260', 'c', datetime.strptime(value, '%Y%m%d').strftime('%-d %b. %Y'))
             elif field_name == 'Job Number':
                 for job in value.split(';'):
                     bib.set('029', 'a', job, address=['+'])
             elif field_name == 'Lang available':
                 langtext = ''
+                langs = set([x[0:1] for x in value.split(' ')])
                 
-                for lang in sorted(value.split(' ')):
-                    langtext += {'AP': 'ara', 'EP': 'eng'}[lang]
+                for lang in sorted(langs):        
+                    langtext += {'A': 'ara', 'C': 'chi', 'E': 'eng', 'F': 'fre', 'R': 'rus', 'S': 'spa', 'O': 'ger'}.get(lang, '')
                     
                 bib.set('041', 'a', langtext)    
-            elif field_name =='Tcodes':
-                for tcode in value.split(';'):
+            elif field_name =='Tcodes' or field_name == 'tcode':
+                for tcode in re.split(r'[,;]', value):
                     q = QueryDocument(Condition('035', {'a': tcode}))
                     auth = Auth.find_one(q.compile())
                     
@@ -58,10 +59,10 @@ def main():
         bib.set_008()
         bibs.records.append(bib)
     
-        if args.output_format == 'mrk':
-            output_handle.write(bibs.to_mrk())
-        else:
-            output_handle.write(bib.to_mrc())
+    if args.output_format == 'mrk':
+        output_handle.write(bibs.to_mrk())
+    else:
+        output_handle.write(bib.to_mrc())
     
 ###
 
