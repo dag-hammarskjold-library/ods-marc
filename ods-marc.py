@@ -20,6 +20,7 @@ output_handle = open(args.output_file, 'w')
 def main():
     tbl = Table.from_excel(args.input_file, date_format='%Y%m%d')
     bibs = BibSet()
+    tcode_index = {}
     
     for temp_id in tbl.index.keys():
         bib = Bib()
@@ -34,7 +35,12 @@ def main():
                 bib.set('245', 'a', title_val.title())
             elif field_name == 'publicaion date' or field_name == 'publication date':
                 bib.set('269', 'a', value)
-                bib.set('260', 'c', datetime.strptime(value, '%Y%m%d').strftime('%-d %b. %Y'))
+                _260c = datetime.strptime(value, '%Y%m%d').strftime('%-d %b. %Y')
+                
+                for old, new in {'May.': 'May', 'Jun.': 'June', 'Jul.': 'July', 'Sep': 'Sept'}.items():
+                    _260c = _260c.replace(old, new)
+                    
+                bib.set('260', 'c', _260c)
             elif field_name == 'Job Number':
                 for job in value.split(';'):
                     bib.set('029', 'a', job, address=['+'])
@@ -48,21 +54,30 @@ def main():
                 bib.set('041', 'a', langtext)    
             elif field_name =='Tcodes' or field_name == 'tcode':
                 for tcode in re.split(r'[,;]', value):
-                    q = QueryDocument(Condition('035', {'a': tcode}))
-                    auth = Auth.find_one(q.compile())
-                    
-                    if auth:
-                        bib.set('650', 'a', auth.id, address=['+'])
+                    if tcode in tcode_index:
+                        auth_id = tcode_index[tcode]
+                        if auth_id == None: continue
                     else:
-                        logging.warning('Auth record for Tcode "{}" not found'.format(tcode))
+                        q = QueryDocument(Condition('035', {'a': tcode}))
+                        auth = Auth.find_one(q.compile())
                         
+                        if auth:
+                            auth_id = auth.id
+                            tcode_index[tcode] = auth_id
+                        else:
+                            logging.warning('Auth record for Tcode "{}" not found'.format(tcode))
+                            tcode_index[tcode] = None
+                            continue
+                    
+                    bib.set('650', 'a', auth_id, address=['+'])
+
         bib.set_008()
         bibs.records.append(bib)
     
     if args.output_format == 'mrk':
         output_handle.write(bibs.to_mrk())
     else:
-        output_handle.write(bib.to_mrc())
+        output_handle.write(bibs.to_mrc())
     
 ###
 
