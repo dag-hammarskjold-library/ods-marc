@@ -20,7 +20,7 @@ output_handle = open(args.output_file, 'w')
 def main():
     tbl = Table.from_excel(args.input_file, date_format='%Y%m%d')
     bibs = BibSet()
-    tcode_index = {}
+    tcode_cache = {}
     
     for temp_id in tbl.index.keys():
         bib = Bib()
@@ -54,8 +54,8 @@ def main():
                 bib.set('041', 'a', langtext)    
             elif field_name =='Tcodes' or field_name == 'tcode':
                 for tcode in re.split(r'[,;]', value):
-                    if tcode in tcode_index:
-                        auth_id = tcode_index[tcode]
+                    if tcode in tcode_cache:
+                        auth_id = tcode_cache[tcode]
                         if auth_id == None: continue
                     else:
                         q = QueryDocument(Condition('035', {'a': tcode}))
@@ -63,14 +63,23 @@ def main():
                         
                         if auth:
                             auth_id = auth.id
-                            tcode_index[tcode] = auth_id
+                            tcode_cache[tcode] = auth_id
                         else:
                             logging.warning('Auth record for Tcode "{}" not found'.format(tcode))
-                            tcode_index[tcode] = None
+                            tcode_cache[tcode] = None
                             continue
                     
                     bib.set('650', 'a', auth_id, address=['+'])
 
+        # this is done here because of limitations in breaking an outer loop from a nested loop
+        new_sym = bib.get_value('191', 'a')
+        q = QueryDocument(Condition('191', {'a': new_sym}))
+        existing = Bib.find_one(q.compile())
+        
+        if existing:
+            logging.warning('{} is already in the system as id {}'.format(new_sym, existing.id))
+            continue
+        
         bib.set_008()
         bibs.records.append(bib)
     
