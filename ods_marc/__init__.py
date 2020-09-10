@@ -69,12 +69,6 @@ def _date(bib, value):
     
     return bib
     
-def _job(bib, value):
-    for job in value.split(';'):
-        bib.set('029', 'a', job, address=['+'])
-        
-    return bib
-    
 def _langs(bib, value):
     langtext = ''
     langs = set([x[0:1] for x in value.split(' ')])
@@ -84,6 +78,15 @@ def _langs(bib, value):
         
     bib.set('041', 'a', langtext)
     
+    return bib
+    
+def _job(bib, value):
+    lang = {'ara': 'A', 'chi': 'C', 'eng': 'E', 'fre': 'F', 'rus': 'R', 'spa': 'S', 'ger': 'O'}
+    langs = map(lambda x: lang[x], filter(lambda x: x in bib.get_value('041'), lang.keys()))
+    
+    for job in value.split(';'):
+        bib.set('029', 'a', 'JN', address=['+']).set('029', 'b', job)
+        
     return bib
     
 def _tcodes(bib, value):
@@ -114,9 +117,9 @@ def run(args):
         'Title': _title,
         'publicaion date': _date,
         'publication date': _date,
+        'Lang available': _langs,
         'Job Number': _job,
         'Jobs': _job,
-        'Lang available': _langs,
         'Tcodes': _tcodes,
         'tcode': _tcodes,
     }
