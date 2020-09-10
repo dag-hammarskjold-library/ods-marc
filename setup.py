@@ -14,7 +14,7 @@ setup(
     author = 'United Nations Dag Hammarskjöld Library',
     author_email = 'library-ny@un.org',
     license = 'http://www.opensource.org/licenses/bsd-license.php',
-    #packages = find_packages(exclude=['test']),
+    packages = find_packages(exclude=['test']),
     #test_suite = 'tests',
     #install_requires = requirements,
     description = 'Convert ODS data to MARC records',

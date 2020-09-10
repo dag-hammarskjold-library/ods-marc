@@ -53,7 +53,8 @@ def _symbol(bib, value):
     
 def _title(bib, value):
     title_val = value.title() if value else '[Missing title]'      
-    bib.set('245', 'a', title_val   )
+    bib.set('245', 'a', title_val)
+    bib.get_field('245').ind1 = '1'
     
     return bib
     
@@ -82,10 +83,20 @@ def _langs(bib, value):
     
 def _job(bib, value):
     lang = {'ara': 'A', 'chi': 'C', 'eng': 'E', 'fre': 'F', 'rus': 'R', 'spa': 'S', 'ger': 'O'}
-    langs = map(lambda x: lang[x], filter(lambda x: x in bib.get_value('041'), lang.keys()))
+    langs = []
+    
+    for l in sorted(lang.keys()):
+        if l in bib.get_value('041', 'a'):
+            langs.append(lang[l])
+    
+    place = 0
     
     for job in value.split(';'):
-        bib.set('029', 'a', 'JN', address=['+']).set('029', 'b', job)
+        langcode = ' ' + langs.pop(0) if len(langs) > 0 else ''
+        bib.set('029', 'a', 'JN', address=['+'])
+        bib.set('029', 'b', job + langcode, address=[place])
+        
+        place += 1
         
     return bib
     
@@ -100,12 +111,16 @@ def _tcodes(bib, value):
             bib.set('650', 'a', auth_id, address=['+'])
         else:
             logging.warning('Auth record for Tcode "{}" not found'.format(tcode))
+            
+        for field in bib.get_fields('650'):
+            field.ind1 = '1'
+            field.ind2 = '7'
     
     return bib
 
 ###
 
-def run(args):
+def run(args=args()):
     DB.connect(args.connect)
     output_path = os.path.expanduser(args.input_file.replace('xlsx', args.output_format))
     output_handle = open(output_path, 'w')
@@ -128,7 +143,7 @@ def run(args):
         bib = Bib()
         exists = False
 
-        for field_name in table.index[row].keys():
+        for field_name in reversed(sorted(table.index[row].keys())):
             todo = dispatch.get(field_name)
             
             if todo:
