@@ -53,7 +53,8 @@ def _symbol(bib, value):
     
 def _title(bib, value):
     title_val = value.title() if value else '[Missing title]'      
-    bib.set('245', 'a', title_val   )
+    bib.set('245', 'a', title_val)
+    bib.get_field('245').ind1 = '1'
     
     return bib
     
@@ -69,12 +70,6 @@ def _date(bib, value):
     
     return bib
     
-def _job(bib, value):
-    for job in value.split(';'):
-        bib.set('029', 'a', job, address=['+'])
-        
-    return bib
-    
 def _langs(bib, value):
     langtext = ''
     langs = set([x[0:1] for x in value.split(' ')])
@@ -84,6 +79,25 @@ def _langs(bib, value):
         
     bib.set('041', 'a', langtext)
     
+    return bib
+    
+def _job(bib, value):
+    lang = {'ara': 'A', 'chi': 'C', 'eng': 'E', 'fre': 'F', 'rus': 'R', 'spa': 'S', 'ger': 'O'}
+    langs = []
+    
+    for l in sorted(lang.keys()):
+        if l in bib.get_value('041', 'a'):
+            langs.append(lang[l])
+    
+    place = 0
+    
+    for job in value.split(';'):
+        langcode = ' ' + langs.pop(0) if len(langs) > 0 else ''
+        bib.set('029', 'a', 'JN', address=['+'])
+        bib.set('029', 'b', job + langcode, address=[place])
+        
+        place += 1
+        
     return bib
     
 def _tcodes(bib, value):
@@ -97,12 +111,16 @@ def _tcodes(bib, value):
             bib.set('650', 'a', auth_id, address=['+'])
         else:
             logging.warning('Auth record for Tcode "{}" not found'.format(tcode))
+            
+        for field in bib.get_fields('650'):
+            field.ind1 = '1'
+            field.ind2 = '7'
     
     return bib
 
 ###
 
-def run(args):
+def run(args=args()):
     DB.connect(args.connect)
     output_path = os.path.expanduser(args.input_file.replace('xlsx', args.output_format))
     output_handle = open(output_path, 'w')
@@ -114,9 +132,9 @@ def run(args):
         'Title': _title,
         'publicaion date': _date,
         'publication date': _date,
+        'Lang available': _langs,
         'Job Number': _job,
         'Jobs': _job,
-        'Lang available': _langs,
         'Tcodes': _tcodes,
         'tcode': _tcodes,
     }
@@ -125,7 +143,7 @@ def run(args):
         bib = Bib()
         exists = False
 
-        for field_name in table.index[row].keys():
+        for field_name in reversed(sorted(table.index[row].keys())):
             todo = dispatch.get(field_name)
             
             if todo:
