@@ -5,7 +5,9 @@ from datetime import datetime
 from argparse import ArgumentParser
 from dlx import DB
 from dlx.util import Table
-from dlx.marc import Bib, BibSet, Auth, QueryDocument, Condition
+from dlx.marc import Bib, BibSet, Auth, QueryDocument, Condition, Or
+#from bson import Regex
+from pymongo.collation import Collation
 
 logging.basicConfig(level='INFO')
 
@@ -130,15 +132,15 @@ def run(args=args()):
     dispatch = {
         'Doc Symbol': _symbol,
         'Title': _title,
-        'publicaion date': _date,
+        #'publicaion date': _date,
         'publication date': _date,
         'Lang available': _langs,
         'Job Number': _job,
         'Jobs': _job,
         'Tcodes': _tcodes,
-        'tcode': _tcodes,
+        #'tcode': _tcodes,
     }
-    
+
     for row in table.index.keys():
         bib = Bib()
         exists = False
@@ -146,17 +148,28 @@ def run(args=args()):
         for field_name in reversed(sorted(table.index[row].keys())):
             todo = dispatch.get(field_name)
             
+            if not todo:
+                raise Exception(f'Field "{field_name}" not found. Recognized fields are {list(dispatch.keys())}')
+            
             if todo:
                 value = table.index[row][field_name].lstrip().rstrip()
                 bib = todo(bib, value)
                 
             if field_name == 'Doc Symbol':
                 symbols = bib.get_values('191', 'a')
-                q = QueryDocument(Condition('191', {'a': {'$in': symbols}}))
-                existing = Bib.find_one(q.compile(), {'_id': 1})
+                symbols = list(set(symbols))
+                
+                q = QueryDocument(
+                    Or(
+                        Condition('191', {'a': {'$in': symbols}}),
+                        Condition('191', {'z': {'$in': symbols}}),
+                    )
+                )
+                
+                existing = next(DB.bibs.find(q.compile(), {'_id': 1}).collation(Collation(locale='en', strength=2)), None)
                 
                 if existing:
-                    logging.warning('{} is already in the system as id {}'.format(symbols, existing.id))
+                    logging.warning('{} is already in the system as id {}'.format(symbols, existing['_id']))
                     exists = True
                     break
     
