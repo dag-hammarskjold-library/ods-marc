@@ -19,8 +19,9 @@ def args():
         usage='\n$ ods-marc --connect=mongodb://dummy --input_file=in.xlsx --output_format=mrc --output_file=out.mrc'
     )
     ap.add_argument('--connect', required=True, help='MDB connection string')
-    ap.add_argument('--input_file', required=True, help='Path to ODS export file')
-    ap.add_argument('--output_format', choices =['mrc', 'mrk'], help='')
+    ap.add_argument('--input_file', required=True, help='Path to ODS Excel file')
+    ap.add_argument('--output_format', required=True, choices =['mrc', 'mrk'])
+    ap.add_argument('--output_file', help='File path to write output to. Default: use input filename + new extension')
 
     return ap.parse_args()
 
@@ -124,36 +125,36 @@ def _tcodes(bib, value):
 
 def run(args=args()):
     DB.connect(args.connect)
-    output_path = os.path.expanduser(args.input_file.replace('xlsx', args.output_format))
+    output_path = args.output_file or os.path.expanduser(args.input_file.replace('xlsx', args.output_format))
     output_handle = open(output_path, 'w')
     table = Table.from_excel(args.input_file, date_format='%Y%m%d')
     bibs = BibSet()
     
     dispatch = {
-        'Doc Symbol': _symbol,
-        'Title': _title,
-        #'publicaion date': _date,
+        'doc symbol': _symbol,
+        'title': _title,
         'publication date': _date,
-        'Lang available': _langs,
-        'Job Number': _job,
-        'Jobs': _job,
-        'Tcodes': _tcodes,
-        #'tcode': _tcodes,
+        'lang available': _langs,
+        'job number': _job,
+        'subjects': _tcodes,
     }
 
     for row in table.index.keys():
         bib = Bib()
         exists = False
+        seen = []
 
         for field_name in reversed(sorted(table.index[row].keys())):
-            todo = dispatch.get(field_name)
+            todo = dispatch.get(field_name.lower())
             
             if not todo:
-                raise Exception(f'Field "{field_name}" not found. Recognized fields are {list(dispatch.keys())}')
-            
+                #raise Exception(f'Field "{field_name}" not found. Recognized fields are {list(dispatch.keys())}')
+                continue
+
             if todo:
-                value = table.index[row][field_name].lstrip().rstrip()
+                value = table.index[row][field_name].strip()
                 bib = todo(bib, value)
+                seen.append(field_name)
                 
             if field_name == 'Doc Symbol':
                 symbols = bib.get_values('191', 'a')
@@ -172,7 +173,11 @@ def run(args=args()):
                     logging.warning('{} is already in the system as id {}'.format(symbols, existing['_id']))
                     exists = True
                     break
-    
+                    
+        for req in list(dispatch.keys()):
+            if req not in map(lambda x: x.lower(), seen):
+                raise Exception(f'Field "{req.title()}" not found in row {row}')
+        
         if exists:
             continue
         
