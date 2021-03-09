@@ -5,7 +5,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 from dlx import DB
 from dlx.util import Table
-from dlx.marc import Bib, BibSet, Auth, QueryDocument, Condition, Or
+from dlx.marc import Bib, BibSet, Auth, Query, Condition, Or
 #from bson import Regex
 from pymongo.collation import Collation
 
@@ -35,7 +35,7 @@ class Tcode():
         if tcode in cls.cache:
             return cls.cache[tcode] 
             
-        q = QueryDocument(Condition('035', {'a': tcode}))
+        q = Query(Condition('035', {'a': tcode}))
         auth = Auth.find_one(q.compile(), {'_id': 1})
         
         if auth:
@@ -64,7 +64,11 @@ def _title(bib, value):
 def _date(bib, value):
     bib.set('269', 'a', value)
     
-    value = datetime.strptime(value, '%Y%m%d').strftime('%-d %b. %Y')
+    dt = datetime.strptime(value, '%Y%m%d')
+    value = dt.strftime('%d %b. %Y')
+    
+    if value[0] == '0':
+        value = value[1:]
     
     for old, new in {'May.': 'May', 'Jun.': 'June', 'Jul.': 'July', 'Sep': 'Sept'}.items():
         value = value.replace(old, new)
@@ -160,7 +164,7 @@ def run(args=args()):
                 symbols = bib.get_values('191', 'a')
                 symbols = list(set(symbols))
                 
-                q = QueryDocument(
+                q = Query(
                     Or(
                         Condition('191', {'a': {'$in': symbols}}),
                         Condition('191', {'z': {'$in': symbols}}),
