@@ -1,6 +1,7 @@
 #### Installation
 From the command line:
 ```bash
+pip install -r requirements.txt
 pip install git+https://github.com/dag-hammarskjold-library/ods-marc
 ```
 
