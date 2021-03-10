@@ -62,10 +62,12 @@ def _title(bib, value):
     return bib
     
 def _date(bib, value):
-    bib.set('269', 'a', value)
-    
-    dt = datetime.strptime(value, '%Y%m%d')
-    value = dt.strftime('%d %b. %Y')
+    value1 = datetime.strptime(value, '%d/%m/%Y').strftime('%Y%m%d')
+
+    bib.set('269', 'a', value1)
+
+    value = datetime.strptime(value, '%d/%m/%Y').strftime('%-d %b. %Y')
+    #value = datetime.strptime(value, '%Y%m%d').strftime('%-d %b. %Y') 
     
     if value[0] == '0':
         value = value[1:]
@@ -131,7 +133,8 @@ def run(args=args()):
     DB.connect(args.connect)
     output_path = args.output_file or os.path.expanduser(args.input_file.replace('xlsx', args.output_format))
     output_handle = open(output_path, 'w')
-    table = Table.from_excel(args.input_file, date_format='%Y%m%d')
+    #table = Table.from_excel(args.input_file, date_format='%Y%m%d')
+    table = Table.from_excel(args.input_file, date_format='%d/%m/%Y')
     bibs = BibSet()
     
     dispatch = {
